@@ -657,8 +657,16 @@ static void totempg_deliver_fn (
 		}
 	}
 
-	memcpy (&assembly->data[assembly->index], &data[datasize],
-		msg_len - datasize);
+	if (assembly->index + msg_len - datasize > MESSAGE_SIZE_MAX) {
+		if (assembly->throw_away_mode != THROW_AWAY_ACTIVE) {
+			log_printf (LOG_ERR, "Received message is too long (longer then %u bytes limit). Throwing away.",
+					MESSAGE_SIZE_MAX);
+			assembly->throw_away_mode = THROW_AWAY_ACTIVE;
+		}
+	} else {
+		memcpy (&assembly->data[assembly->index], &data[datasize],
+			msg_len - datasize);
+	}
 
 	/*
 	 * If the last message in the buffer is a fragment, then we
