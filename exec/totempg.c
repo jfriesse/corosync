@@ -198,7 +198,7 @@ enum throw_away_mode {
 
 struct assembly {
 	unsigned int nodeid;
-	unsigned char data[MESSAGE_SIZE_MAX];
+	unsigned char *data;
 	int index;
 	unsigned char last_frag_num;
 	enum throw_away_mode throw_away_mode;
@@ -336,7 +336,9 @@ static struct assembly *assembly_ref (unsigned int nodeid)
 	/*
 	 * TODO handle memory allocation failure here
 	 */
-	assert (assembly);
+	assert (assembly != NULL);
+	assembly->data = (unsigned char *)malloc(totempg_totem_config->max_msg_size);
+	assert (assembly->data != NULL);
 	assembly->nodeid = nodeid;
 	assembly->data[0] = 0;
 	assembly->index = 0;
@@ -657,10 +659,10 @@ static void totempg_deliver_fn (
 		}
 	}
 
-	if (assembly->index + msg_len - datasize > MESSAGE_SIZE_MAX) {
+	if (assembly->index + msg_len - datasize > totempg_totem_config->max_msg_size) {
 		if (assembly->throw_away_mode != THROW_AWAY_ACTIVE) {
 			log_printf (LOG_ERR, "Received message is too long (longer then %u bytes limit). Throwing away.",
-					MESSAGE_SIZE_MAX);
+					totempg_totem_config->max_msg_size);
 			assembly->throw_away_mode = THROW_AWAY_ACTIVE;
 		}
 	} else {
