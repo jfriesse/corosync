@@ -599,6 +599,7 @@ static void remove_ro_entries(icmap_map_t temp_map)
 	delete_and_notify_if_changed(temp_map, "totem.vsftype");
 	delete_and_notify_if_changed(temp_map, "totem.transport");
 	delete_and_notify_if_changed(temp_map, "totem.cluster_name");
+	delete_and_notify_if_changed(temp_map, "totem.max_msg_size");
 	delete_and_notify_if_changed(temp_map, "quorum.provider");
 	delete_and_notify_if_changed(temp_map, "qb.ipc_type");
 }

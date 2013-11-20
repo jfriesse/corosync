@@ -49,7 +49,7 @@
 #define PROCESSOR_COUNT_MAX	384
 #define MESSAGE_SIZE_DEFAULT	MESSAGE_SIZE_SCALE*1024
 #define MESSAGE_SIZE_MAX	MESSAGE_SIZE_SCALE*1024 /* (1MB) */
-#define MESSAGE_QUEUE_MAX	((4 * MESSAGE_SIZE_MAX) / totem_config->net_mtu)
+#define MESSAGE_QUEUE_MAX	((4 * totem_config->max_msg_size) / totem_config->net_mtu)
 #endif /* HAVE_SMALL_MEMORY_FOOTPRINT */
 
 #define FRAME_SIZE_MAX		10000
@@ -186,6 +186,8 @@ struct totem_config {
 	unsigned int miss_count_const;
 
 	int ip_version;
+
+	uint32_t max_msg_size;
 };
 
 #define TOTEM_CONFIGURATION_TYPE

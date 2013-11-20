@@ -564,7 +564,24 @@ static int main_config_parser_cb(const char *path,
 				if (safe_atoi(value, &i) != 0) {
 					goto atoi_error;
 				}
-				icmap_set_uint32_r(config_map,path, i);
+				icmap_set_uint32_r(config_map, path, i);
+				add_as_string = 0;
+			}
+			if (strcmp(path, "totem.max_msg_size") == 0) {
+				if (safe_atoi(value, &i) != 0) {
+					goto atoi_error;
+				}
+				if (i * MESSAGE_SIZE_SCALE > MESSAGE_SIZE_MAX) {
+					*error_string = "Too large max message size";
+
+					return (0);
+				}
+				if (i * MESSAGE_SIZE_SCALE < MESSAGE_SIZE_MIN) {
+					*error_string = "Too small max message size";
+
+					return (0);
+				}
+				icmap_set_uint32_r(config_map, path, i);
 				add_as_string = 0;
 			}
 			if (strcmp(path, "totem.config_version") == 0) {

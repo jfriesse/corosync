@@ -491,6 +491,7 @@ extern int totem_config_read (
 	char tmp_key[ICMAP_KEYNAME_MAXLEN];
 	uint8_t u8;
 	uint16_t u16;
+	uint32_t u32;
 	char *cluster_name = NULL;
 	int i;
 	int local_node_pos;
@@ -541,6 +542,13 @@ extern int totem_config_read (
 	icmap_get_uint32("totem.threads", &totem_config->threads);
 
 	icmap_get_uint32("totem.netmtu", &totem_config->net_mtu);
+
+	if (icmap_get_uint32("totem.max_msg_size", &u32) != CS_OK) {
+		u32 = MESSAGE_SIZE_DEFAULT;
+	} else {
+		u32 *= MESSAGE_SIZE_SCALE;
+	}
+	totem_config->max_msg_size = u32;
 
 	if (icmap_get_string("totem.cluster_name", &cluster_name) != CS_OK) {
 		cluster_name = NULL;

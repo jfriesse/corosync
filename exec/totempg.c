@@ -1086,7 +1086,7 @@ static void send_release (
 
 #ifndef HAVE_SMALL_MEMORY_FOOTPRINT
 #undef MESSAGE_QUEUE_MAX
-#define MESSAGE_QUEUE_MAX	((4 * MESSAGE_SIZE_MAX) / totempg_totem_config->net_mtu)
+#define MESSAGE_QUEUE_MAX	((4 * totempg_totem_config->max_msg_size) / totempg_totem_config->net_mtu)
 #endif /* HAVE_SMALL_MEMORY_FOOTPRINT */
 
 static uint32_t q_level_precent_used(void)

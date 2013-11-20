@@ -838,6 +838,24 @@ static enum qb_ipc_type cs_get_ipc_type (void)
 	return ret;
 }
 
+static uint32_t cs_get_max_msg_size (void)
+{
+	uint32_t u32;
+
+	if (icmap_get_uint32("totem.max_msg_size", &u32) != CS_OK) {
+		log_printf(LOGSYS_LEVEL_DEBUG,
+		    "No configured totem.max_msg_size. Using default size %"PRIu32" bytes",
+		    MESSAGE_SIZE_DEFAULT);
+		u32 = MESSAGE_SIZE_DEFAULT;
+	} else {
+		u32 *= MESSAGE_SIZE_SCALE;
+		log_printf(LOGSYS_LEVEL_DEBUG,
+		    "Using maximum message size %"PRIu32" bytes", u32);
+	}
+
+	return (u32);
+}
+
 const char *cs_ipcs_service_init(struct corosync_service_engine *service)
 {
 	const char *serv_short_name;
@@ -868,6 +886,9 @@ const char *cs_ipcs_service_init(struct corosync_service_engine *service)
 		cs_get_ipc_type(),
 		&corosync_service_funcs);
 	assert(ipcs_mapper[service->id].inst);
+
+	qb_ipcs_enforce_buffer_size(ipcs_mapper[service->id].inst, cs_get_max_msg_size());
+
 	qb_ipcs_poll_handlers_set(ipcs_mapper[service->id].inst,
 		&corosync_poll_funcs);
 	if (qb_ipcs_run(ipcs_mapper[service->id].inst) != 0) {

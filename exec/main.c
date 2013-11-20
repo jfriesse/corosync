@@ -960,6 +960,7 @@ static void set_icmap_ro_keys_flag (void)
 	icmap_set_ro_access("totem.ip_version", CS_FALSE, CS_TRUE);
 	icmap_set_ro_access("totem.rrp_mode", CS_FALSE, CS_TRUE);
 	icmap_set_ro_access("totem.netmtu", CS_FALSE, CS_TRUE);
+	icmap_set_ro_access("totem.max_msg_size", CS_FALSE, CS_TRUE);
 	icmap_set_ro_access("qb.ipc_type", CS_FALSE, CS_TRUE);
 }
 
