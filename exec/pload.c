@@ -236,13 +236,20 @@ static void pload_read_config(
 {
 	uint32_t pload_count = 1500000;
 	uint32_t pload_size = 300;
+	uint32_t max_msg_size;
 	char *pload_start = NULL;
 
 	icmap_get_uint32("pload.count", &pload_count);
 	icmap_get_uint32("pload.size", &pload_size);
 
-	if (pload_size > MESSAGE_SIZE_MAX) {
-		pload_size = MESSAGE_SIZE_MAX;
+	if (icmap_get_uint32("totem.max_msg_size", &max_msg_size) != CS_OK) {
+                 max_msg_size = MESSAGE_SIZE_DEFAULT;
+         } else {
+                 max_msg_size *= MESSAGE_SIZE_SCALE;
+         }
+
+	if (pload_size > max_msg_size) {
+		pload_size = max_msg_size;
 		log_printf(LOGSYS_LEVEL_WARNING, "pload size limited to %u", pload_size);
 	}
 
