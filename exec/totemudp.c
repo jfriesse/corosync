@@ -207,8 +207,6 @@ static int totemudp_build_sockets (
 	struct totemudp_socket *sockets,
 	struct totem_ip_address *bound_to);
 
-static struct totem_ip_address localhost;
-
 static void totemudp_instance_initialize (struct totemudp_instance *instance)
 {
 	memset (instance, 0, sizeof (struct totemudp_instance));
@@ -269,6 +267,7 @@ static inline void ucast_sendmsg (
 	struct sockaddr_storage sockaddr;
 	struct iovec iovec;
 	int addrlen;
+	int send_sock;
 
 	/*
 	 * Encrypt and digest the message
@@ -313,11 +312,19 @@ static inline void ucast_sendmsg (
 #endif
 
 
+	if (instance->netif_bind_state == BIND_STATE_REGULAR) {
+		send_sock = instance->totemudp_sockets.mcast_send;
+	} else {
+		send_sock = instance->totemudp_sockets.local_mcast_loop[1];
+		msg_ucast.msg_name = NULL;
+		msg_ucast.msg_namelen = 0;
+	}
+
 	/*
 	 * Transmit unicast message
 	 * An error here is recovered by totemsrp
 	 */
-	res = sendmsg (instance->totemudp_sockets.mcast_send, &msg_ucast,
+	res = sendmsg (send_sock, &msg_ucast,
 		MSG_NOSIGNAL);
 	if (res < 0) {
 		LOGSYS_PERROR (errno, instance->totemudp_log_level_debug,
@@ -380,18 +387,20 @@ static inline void mcast_sendmsg (
 	msg_mcast.msg_accrightslen = 0;
 #endif
 
-	/*
-	 * Transmit multicast message
-	 * An error here is recovered by totemsrp
-	 */
-	res = sendmsg (instance->totemudp_sockets.mcast_send, &msg_mcast,
-		MSG_NOSIGNAL);
-	if (res < 0) {
-		LOGSYS_PERROR (errno, instance->totemudp_log_level_debug,
-			"sendmsg(mcast) failed (non-critical)");
-		instance->stats->continuous_sendmsg_failures++;
-	} else {
-		instance->stats->continuous_sendmsg_failures = 0;
+	if (instance->netif_bind_state == BIND_STATE_REGULAR) {
+		/*
+		 * Transmit multicast message
+		 * An error here is recovered by totemsrp
+		 */
+		res = sendmsg (instance->totemudp_sockets.mcast_send, &msg_mcast,
+			MSG_NOSIGNAL);
+		if (res < 0) {
+			LOGSYS_PERROR (errno, instance->totemudp_log_level_debug,
+				"sendmsg(mcast) failed (non-critical)");
+			instance->stats->continuous_sendmsg_failures++;
+		} else {
+			instance->stats->continuous_sendmsg_failures = 0;
+		}
 	}
 
 	/*
@@ -556,7 +565,6 @@ static void timer_function_netif_check_timeout (
 	struct totemudp_instance *instance = (struct totemudp_instance *)data;
 	int interface_up;
 	int interface_num;
-	struct totem_ip_address *bind_address;
 
 	/*
 	 * Build sockets for every interface
@@ -593,28 +601,31 @@ static void timer_function_netif_check_timeout (
 	 	qb_loop_poll_del (instance->totemudp_poll_handle,
 			instance->totemudp_sockets.mcast_recv);
 		close (instance->totemudp_sockets.mcast_recv);
+		instance->totemudp_sockets.mcast_recv = -1;
 	}
 	if (instance->totemudp_sockets.mcast_send > 0) {
 		close (instance->totemudp_sockets.mcast_send);
-	}
-	if (instance->totemudp_sockets.local_mcast_loop[0] > 0) {
-		qb_loop_poll_del (instance->totemudp_poll_handle,
-			instance->totemudp_sockets.local_mcast_loop[0]);
-		close (instance->totemudp_sockets.local_mcast_loop[0]);
-		close (instance->totemudp_sockets.local_mcast_loop[1]);
+		instance->totemudp_sockets.mcast_send = -1;
 	}
 	if (instance->totemudp_sockets.token > 0) {
 		qb_loop_poll_del (instance->totemudp_poll_handle,
 			instance->totemudp_sockets.token);
 		close (instance->totemudp_sockets.token);
+		instance->totemudp_sockets.token = -1;
 	}
 
 	if (interface_up == 0) {
+		if (instance->netif_bind_state == BIND_STATE_UNBOUND) {
+			log_printf (instance->totemudp_log_level_error,
+				"One of your ip addresses are now bound to localhost. "
+				"Corosync would not work correctly.");
+			exit(COROSYNC_DONE_FATAL_ERR);
+		}
+
 		/*
 		 * Interface is not up
 		 */
 		instance->netif_bind_state = BIND_STATE_LOOPBACK;
-		bind_address = &localhost;
 
 		/*
 		 * Add a timer to retry building interfaces and request memb_gather_enter
@@ -630,34 +641,29 @@ static void timer_function_netif_check_timeout (
 		 * Interface is up
 		 */
 		instance->netif_bind_state = BIND_STATE_REGULAR;
-		bind_address = &instance->totem_interface->bindnet;
 	}
 	/*
 	 * Create and bind the multicast and unicast sockets
 	 */
 	(void)totemudp_build_sockets (instance,
 		&instance->mcast_address,
-		bind_address,
+		&instance->totem_interface->bindnet,
 		&instance->totemudp_sockets,
 		&instance->totem_interface->boundto);
 
-	qb_loop_poll_add (
-		instance->totemudp_poll_handle,
-		QB_LOOP_MED,
-		instance->totemudp_sockets.mcast_recv,
-		POLLIN, instance, net_deliver_fn);
+	if (instance->netif_bind_state == BIND_STATE_REGULAR) {
+		qb_loop_poll_add (
+			instance->totemudp_poll_handle,
+			QB_LOOP_MED,
+			instance->totemudp_sockets.mcast_recv,
+			POLLIN, instance, net_deliver_fn);
 
-	qb_loop_poll_add (
-		instance->totemudp_poll_handle,
-		QB_LOOP_MED,
-		instance->totemudp_sockets.local_mcast_loop[0],
-		POLLIN, instance, net_deliver_fn);
-
-	qb_loop_poll_add (
-		instance->totemudp_poll_handle,
-		QB_LOOP_MED,
-		instance->totemudp_sockets.token,
-		POLLIN, instance, net_deliver_fn);
+		qb_loop_poll_add (
+			instance->totemudp_poll_handle,
+			QB_LOOP_MED,
+			instance->totemudp_sockets.token,
+			POLLIN, instance, net_deliver_fn);
+	}
 
 	totemip_copy (&instance->my_id, &instance->totem_interface->boundto);
 
@@ -708,6 +714,66 @@ static void totemudp_traffic_control_set(struct totemudp_instance *instance, int
 #endif
 }
 
+static int totemudp_build_local_sockets(
+	struct totemudp_instance *instance,
+	struct totemudp_socket *sockets)
+{
+	int i;
+	unsigned int sendbuf_size;
+	unsigned int recvbuf_size;
+	unsigned int optlen = sizeof (sendbuf_size);
+	int res;
+
+	/*
+	 * Create local multicast loop socket
+	 */
+	if (socketpair(AF_UNIX, SOCK_DGRAM, 0, sockets->local_mcast_loop) == -1) {
+		LOGSYS_PERROR (errno, instance->totemudp_log_level_warning,
+			"socket() failed");
+		return (-1);
+	}
+
+	for (i = 0; i < 2; i++) {
+		totemip_nosigpipe (sockets->local_mcast_loop[i]);
+		res = fcntl (sockets->local_mcast_loop[i], F_SETFL, O_NONBLOCK);
+		if (res == -1) {
+			LOGSYS_PERROR (errno, instance->totemudp_log_level_warning,
+				"Could not set non-blocking operation on multicast socket");
+			return (-1);
+		}
+	}
+
+	recvbuf_size = MCAST_SOCKET_BUFFER_SIZE;
+	sendbuf_size = MCAST_SOCKET_BUFFER_SIZE;
+
+	res = setsockopt (sockets->local_mcast_loop[0], SOL_SOCKET, SO_RCVBUF, &recvbuf_size, optlen);
+	if (res == -1) {
+		LOGSYS_PERROR (errno, instance->totemudp_log_level_debug,
+			"Unable to set SO_RCVBUF size on UDP local mcast loop socket");
+		return (-1);
+	}
+	res = setsockopt (sockets->local_mcast_loop[1], SOL_SOCKET, SO_SNDBUF, &sendbuf_size, optlen);
+	if (res == -1) {
+		LOGSYS_PERROR (errno, instance->totemudp_log_level_debug,
+			"Unable to set SO_SNDBUF size on UDP local mcast loop socket");
+		return (-1);
+	}
+
+	res = getsockopt (sockets->local_mcast_loop[0], SOL_SOCKET, SO_RCVBUF, &recvbuf_size, &optlen);
+	if (res == 0) {
+		log_printf (instance->totemudp_log_level_debug,
+			"Local receive multicast loop socket recv buffer size (%d bytes).", recvbuf_size);
+	}
+
+	res = getsockopt (sockets->local_mcast_loop[1], SOL_SOCKET, SO_SNDBUF, &sendbuf_size, &optlen);
+	if (res == 0) {
+		log_printf (instance->totemudp_log_level_debug,
+			"Local transmit multicast loop socket send buffer size (%d bytes).", sendbuf_size);
+	}
+
+	return (0);
+}
+
 static int totemudp_build_sockets_ip (
 	struct totemudp_instance *instance,
 	struct totem_ip_address *mcast_address,
@@ -730,7 +796,8 @@ static int totemudp_build_sockets_ip (
 	int res;
 	int flag;
 	uint8_t sflag;
-	int i;
+
+
 
 	/*
 	 * Create multicast recv socket
@@ -760,24 +827,6 @@ static int totemudp_build_sockets_ip (
 		return (-1);
 	}
 
-	/*
-	 * Create local multicast loop socket
-	 */
-	if (socketpair(AF_UNIX, SOCK_DGRAM, 0, sockets->local_mcast_loop) == -1) {
-		LOGSYS_PERROR (errno, instance->totemudp_log_level_warning,
-			"socket() failed");
-		return (-1);
-	}
-
-	for (i = 0; i < 2; i++) {
-		totemip_nosigpipe (sockets->local_mcast_loop[i]);
-		res = fcntl (sockets->local_mcast_loop[i], F_SETFL, O_NONBLOCK);
-		if (res == -1) {
-			LOGSYS_PERROR (errno, instance->totemudp_log_level_warning,
-				"Could not set non-blocking operation on multicast socket");
-			return (-1);
-		}
-	}
 
 
 
@@ -875,18 +924,6 @@ static int totemudp_build_sockets_ip (
 			"Unable to set SO_SNDBUF size on UDP mcast socket");
 		return (-1);
 	}
-	res = setsockopt (sockets->local_mcast_loop[0], SOL_SOCKET, SO_RCVBUF, &recvbuf_size, optlen);
-	if (res == -1) {
-		LOGSYS_PERROR (errno, instance->totemudp_log_level_debug,
-			"Unable to set SO_RCVBUF size on UDP local mcast loop socket");
-		return (-1);
-	}
-	res = setsockopt (sockets->local_mcast_loop[1], SOL_SOCKET, SO_SNDBUF, &sendbuf_size, optlen);
-	if (res == -1) {
-		LOGSYS_PERROR (errno, instance->totemudp_log_level_debug,
-			"Unable to set SO_SNDBUF size on UDP local mcast loop socket");
-		return (-1);
-	}
 
 	res = getsockopt (sockets->mcast_recv, SOL_SOCKET, SO_RCVBUF, &recvbuf_size, &optlen);
 	if (res == 0) {
@@ -900,17 +937,6 @@ static int totemudp_build_sockets_ip (
 			"Transmit multicast socket send buffer size (%d bytes).", sendbuf_size);
 	}
 
-	res = getsockopt (sockets->local_mcast_loop[0], SOL_SOCKET, SO_RCVBUF, &recvbuf_size, &optlen);
-	if (res == 0) {
-		log_printf (instance->totemudp_log_level_debug,
-			"Local receive multicast loop socket recv buffer size (%d bytes).", recvbuf_size);
-	}
-
-	res = getsockopt (sockets->local_mcast_loop[1], SOL_SOCKET, SO_SNDBUF, &sendbuf_size, &optlen);
-	if (res == 0) {
-		log_printf (instance->totemudp_log_level_debug,
-			"Local transmit multicast loop socket send buffer size (%d bytes).", sendbuf_size);
-	}
 
 
 	/*
@@ -1178,8 +1204,19 @@ int totemudp_initialize (
 
 	instance->totemudp_target_set_completed = target_set_completed;
 
-	totemip_localhost (instance->mcast_address.family, &localhost);
-	localhost.nodeid = instance->totem_config->node_id;
+	/*
+	 * Create static local mcast sockets
+	 */
+	if (totemudp_build_local_sockets(instance, &instance->totemudp_sockets) == -1) {
+		free(instance);
+		return (-1);
+	}
+
+	qb_loop_poll_add (
+		instance->totemudp_poll_handle,
+		QB_LOOP_MED,
+		instance->totemudp_sockets.local_mcast_loop[0],
+		POLLIN, instance, net_deliver_fn);
 
 	/*
 	 * RRP layer isn't ready to receive message because it hasn't
@@ -1242,10 +1279,14 @@ int totemudp_recv_flush (void *udp_context)
 	for (i = 0; i < 2; i++) {
 		sock = -1;
 		if (i == 0) {
-		    sock = instance->totemudp_sockets.mcast_recv;
+			if (instance->netif_bind_state == BIND_STATE_REGULAR) {
+				sock = instance->totemudp_sockets.mcast_recv;
+			} else {
+				continue ;
+			}
 		}
 		if (i == 1) {
-		    sock = instance->totemudp_sockets.local_mcast_loop[0];
+			sock = instance->totemudp_sockets.local_mcast_loop[0];
 		}
 		assert(sock != -1);
 
