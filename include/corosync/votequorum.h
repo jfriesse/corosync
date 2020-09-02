@@ -57,6 +57,7 @@ typedef uint64_t votequorum_handle_t;
 #define VOTEQUORUM_INFO_QDEVICE_ALIVE            128
 #define VOTEQUORUM_INFO_QDEVICE_CAST_VOTE        256
 #define VOTEQUORUM_INFO_QDEVICE_MASTER_WINS      512
+#define VOTEQUORUM_INFO_SYNC                     1024
 
 #define VOTEQUORUM_QDEVICE_NODEID                0
 #define VOTEQUORUM_QDEVICE_MAX_NAME_LEN          255

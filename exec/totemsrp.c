@@ -2124,11 +2124,15 @@ static void memb_state_operational_enter (struct totemsrp_instance *instance)
 	return;
 }
 
+extern void votequorum_set_in_sync(int in_sync_param);
+
 static void memb_state_gather_enter (
 	struct totemsrp_instance *instance,
 	enum gather_state_from gather_from)
 {
 	int32_t res;
+
+	votequorum_set_in_sync(1);
 
 	instance->orf_token_discard = 1;
 

@@ -57,6 +57,7 @@
 
 LOGSYS_DECLARE_SUBSYS ("VOTEQ");
 
+
 /*
  * interface with corosync
  */
@@ -77,6 +78,7 @@ static void *qdevice_reg_conn = NULL;
 static uint8_t qdevice_master_wins = 0;
 
 static uint8_t two_node = 0;
+static uint8_t in_sync = 0;
 
 static uint8_t wait_for_all = 0;
 static uint8_t wait_for_all_status = 0;
@@ -2649,6 +2651,9 @@ static void message_handler_req_lib_votequorum_getinfo (void *conn, const void *
 		if (allow_downscale) {
 			res_lib_votequorum_getinfo.flags |= VOTEQUORUM_INFO_ALLOW_DOWNSCALE;
 		}
+		if (in_sync) {
+			res_lib_votequorum_getinfo.flags |= VOTEQUORUM_INFO_SYNC;
+		}
 
 		memset(res_lib_votequorum_getinfo.qdevice_name, 0, VOTEQUORUM_QDEVICE_MAX_NAME_LEN);
 		strcpy(res_lib_votequorum_getinfo.qdevice_name, qdevice_name);
@@ -3079,4 +3084,12 @@ out:
 	corosync_api->ipc_response_send(conn, &res_lib_votequorum_status, sizeof(res_lib_votequorum_status));
 
 	LEAVE();
+}
+
+extern void votequorum_set_in_sync(int in_sync_param);
+
+void
+votequorum_set_in_sync(int in_sync_param)
+{
+	in_sync = in_sync_param;
 }

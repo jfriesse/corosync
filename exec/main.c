@@ -290,6 +290,8 @@ static void serialize_unlock (void)
 {
 }
 
+extern void votequorum_set_in_sync(int in_sync_param);
+
 static void corosync_sync_completed (void)
 {
 	log_printf (LOGSYS_LEVEL_NOTICE,
@@ -302,6 +304,8 @@ static void corosync_sync_completed (void)
 	 * Inform totem to start using new message queue again
 	 */
 	totempg_trans_ack();
+
+	votequorum_set_in_sync(0);
 
 #ifdef HAVE_LIBSYSTEMD
 	sd_notify (0, "READY=1");

@@ -123,11 +123,13 @@ int main(int argc, char *argv[])
 	struct votequorum_info info;
 	votequorum_callbacks_t callbacks;
 	int err;
+	int in_sync;
 
 	if (argc > 1 && strcmp(argv[1], "-h")==0) {
 		fprintf(stderr, "usage: %s [new-expected] [new-votes]\n", argv[0]);
 		return 0;
 	}
+
 
 	callbacks.votequorum_quorum_notify_fn = votequorum_quorum_notification_fn;
 	callbacks.votequorum_nodelist_notify_fn = votequorum_nodelist_notification_fn;
@@ -135,6 +137,22 @@ int main(int argc, char *argv[])
 
 	if ( (err=votequorum_initialize(&g_handle, &callbacks)) != CS_OK)
 		fprintf(stderr, "votequorum_initialize FAILED: %d\n", err);
+
+	in_sync = 0;
+	while (1) {
+		if ( (err=votequorum_getinfo(g_handle, 0, &info)) != CS_OK) {
+			fprintf(stderr, "votequorum_getinfo FAILED: %d\n", err);
+			exit(1);
+		} else {
+			if (info.flags & VOTEQUORUM_INFO_SYNC && !in_sync) {
+				printf("Sync start\n");
+				in_sync = 1;
+			} else if (!(info.flags & VOTEQUORUM_INFO_SYNC) && in_sync) {
+				printf("Sync end\n");
+				in_sync = 0;
+			}
+		}
+	}
 
 	if ( (err = votequorum_trackstart(g_handle, g_handle, CS_TRACK_CHANGES)) != CS_OK)
 		fprintf(stderr, "votequorum_trackstart FAILED: %d\n", err);
