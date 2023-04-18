@@ -151,7 +151,7 @@ int main (int argc, char *argv[])
 	 */
 	i = 0;
 	do {
-		msg.msg_size = 100 + rand() % 100000;
+		msg.msg_size = 50000;
 		iov[1].iov_len = msg.msg_size;
 		for (j = 0; j < msg.msg_size; j++) {
 			buffer[j] = j;
@@ -175,6 +175,7 @@ try_again_one:
 			exit(1);
 		}
 		i++;
+		poll(NULL, 0, 10);
 	} while (run_forever || i < iter);
 
 	cpg_finalize (handle);

@@ -43,6 +43,8 @@
 #include <totemnet.h>
 #include <qb/qbloop.h>
 
+#include "totembcache.h"
+
 #define LOGSYS_UTILS_ONLY 1
 #include <corosync/logsys.h>
 
@@ -260,6 +262,8 @@ struct totemnet_instance {
                 ...)__attribute__((format(printf, 6, 7)));
 
         int totemnet_subsys_id;
+
+        struct totembcache buffer_cache;
 };
 
 #define log_printf(level, format, args...)				\
@@ -287,6 +291,10 @@ static void totemnet_instance_initialize (
 		"Initializing transport (%s).", transport_entries[transport].name);
 
 	instance->transport = &transport_entries[transport];
+
+	totembcache_initialize(&instance->buffer_cache,
+	    instance->transport->buffer_alloc,
+	    instance->transport->buffer_release);
 }
 
 int totemnet_crypto_set (
@@ -308,6 +316,8 @@ int totemnet_finalize (
 {
 	struct totemnet_instance *instance = (struct totemnet_instance *)net_context;
 	int res = 0;
+
+	totembcache_finalize(&instance->buffer_cache);
 
 	res = instance->transport->finalize (instance->transport_context);
 
@@ -367,17 +377,18 @@ error_destroy:
 void *totemnet_buffer_alloc (void *net_context)
 {
 	struct totemnet_instance *instance = net_context;
+
 	assert (instance != NULL);
-	assert (instance->transport != NULL);
-	return instance->transport->buffer_alloc();
+
+	return (totembcache_buffer_alloc(&instance->buffer_cache));
 }
 
 void totemnet_buffer_release (void *net_context, void *ptr)
 {
 	struct totemnet_instance *instance = net_context;
 	assert (instance != NULL);
-	assert (instance->transport != NULL);
-	instance->transport->buffer_release (ptr);
+
+	totembcache_buffer_release(&instance->buffer_cache, ptr);
 }
 
 int totemnet_processor_count_set (
@@ -418,6 +429,8 @@ int totemnet_token_send (
 {
 	struct totemnet_instance *instance = (struct totemnet_instance *)net_context;
 	int res = 0;
+
+	totembcache_gc(&instance->buffer_cache);
 
 	res = instance->transport->token_send (instance->transport_context, msg, msg_len);
 

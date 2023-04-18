@@ -1048,11 +1048,13 @@ int totemudpu_initialize (
 
 void *totemudpu_buffer_alloc (void)
 {
+//	printf("alloc\n");
 	return malloc (FRAME_SIZE_MAX);
 }
 
 void totemudpu_buffer_release (void *ptr)
 {
+//	printf("free\n");
 	return free (ptr);
 }
 
