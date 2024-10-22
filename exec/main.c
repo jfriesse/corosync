@@ -505,6 +505,7 @@ static void corosync_totem_stats_updater (void *data)
 	int t, prev;
 	int32_t token_count;
 	const char *cstr;
+	uint32_t time_now;
 
 	stats = api->totem_get_stats();
 
@@ -561,7 +562,8 @@ static void corosync_totem_stats_updater (void *data)
 		stats->srp->avg_backlog_calc = (total_backlog_calc / token_count);
 	}
 
-	stats->srp->time_since_token_last_received = qb_util_nano_current_get () / QB_TIME_NS_IN_MSEC -
+	time_now = qb_util_nano_current_get () / QB_TIME_NS_IN_MSEC;
+	stats->srp->time_since_token_last_received = time_now -
 		stats->srp->token[stats->srp->latest_token].rx;
 
 	stats_trigger_trackers();
