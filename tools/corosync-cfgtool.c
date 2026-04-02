@@ -105,7 +105,9 @@ nodestatusget_do (enum user_action action, int brief)
 	int nodeid_match_guard;
 	cmap_value_types_t type;
 	size_t value_len;
+#ifdef ENABLE_UDPU
 	char *str;
+#endif
 	char *transport_str = NULL;
 	uint32_t nodeid_list[KNET_MAX_HOST];
 	const char *link_transport[KNET_MAX_LINK];
@@ -127,6 +129,7 @@ nodestatusget_do (enum user_action action, int brief)
 		exit (EXIT_FAILURE);
 	}
 
+#ifdef ENABLE_UDPU
 	result = cmap_get_string(cmap_handle, "totem.transport", &str);
 	if (result == CS_OK) {
 		if (strcmp (str, "udpu") == 0) {
@@ -137,6 +140,7 @@ nodestatusget_do (enum user_action action, int brief)
 		}
 		transport_str = str;
 	}
+#endif
 	if (!transport_str) {
 		transport_str = strdup("knet"); /* It's the default */
 	}
