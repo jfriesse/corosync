@@ -3829,6 +3829,14 @@ static int check_memb_commit_token_sanity(
 		addr_entries = swab32(addr_entries);
 	}
 
+	if (addr_entries > PROCESSOR_COUNT_MAX) {
+		log_printf (instance->totemsrp_log_level_security,
+		    "Received commit_token message addr_entries exceeds the maximum "
+		    "allowed value...  ignoring.");
+
+		return (-1);
+	}
+
 	required_len = sizeof(struct memb_commit_token) +
 	    (addr_entries * (sizeof(struct srp_addr) + sizeof(struct memb_commit_token_memb_entry)));
 	if (msg_len < required_len) {
