@@ -659,7 +659,14 @@ static void totempg_deliver_fn (
 		return ;
 	}
 
-	assert((assembly->index+msg_len) < sizeof(assembly->data));
+	if (assembly->index + msg_len >= sizeof(assembly->data)) {
+		log_printf(LOG_WARNING,
+		    "Message (totempg_mcast) received from node " CS_PRI_NODE_ID
+		    " would create too long message of %u bytes...  Ignoring.",
+		    nodeid, assembly->index + msg_len);
+
+		return ;
+	}
 	memcpy (&assembly->data[assembly->index], &data[datasize],
 		msg_len - datasize);
 
